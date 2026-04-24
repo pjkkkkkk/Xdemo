@@ -111,3 +111,7 @@ InitTestScene*.unity*
 
 Assets/Screenshots/
 unity/
+
+# Ignore Unity auto-recovery duplicate scene copies like "0 (1).unity"
+/Assets/_Recovery/*\(*\).unity
+/Assets/_Recovery/*\(*\).unity.meta
