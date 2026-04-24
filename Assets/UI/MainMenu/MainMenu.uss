@@ -1,0 +1,252 @@
+.menu-root {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(4, 5, 8);
+}
+
+.background-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-image: url("project://database/Assets/UI/MainMenu/Images/MainMenuBackground.png");
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.background-bloom {
+    position: absolute;
+    left: 34%;
+    top: 17%;
+    width: 26%;
+    height: 58%;
+    background-color: rgba(80, 46, 18, 0.10);
+}
+
+.dark-wash {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(3, 6, 12, 0.58);
+}
+
+.fog-wash {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(18, 23, 31, 0.28);
+    opacity: 0.84;
+}
+
+.edge-vignette {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 24%;
+    background-color: rgba(0, 0, 0, 0.46);
+}
+
+.edge-vignette-left {
+    left: 0;
+}
+
+.edge-vignette-right {
+    right: 0;
+}
+
+.screen-veil {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.28);
+}
+
+.upper-veil {
+    top: 0;
+    height: 18%;
+}
+
+.lower-veil {
+    bottom: 0;
+    height: 28%;
+}
+
+.frame-root {
+    flex-grow: 1;
+    position: relative;
+}
+
+.title-anchor {
+    position: absolute;
+    left: 5.5%;
+    top: 8%;
+    width: 34%;
+    min-width: 320px;
+    padding-left: 26px;
+    padding-right: 20px;
+    padding-top: 18px;
+    padding-bottom: 20px;
+    background-color: rgba(8, 8, 10, 0.20);
+    border-left-width: 1px;
+    border-left-color: rgba(151, 119, 82, 0.28);
+}
+
+.eyebrow {
+    color: rgba(191, 159, 120, 0.90);
+    font-size: 11px;
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    -unity-font-style: bold;
+}
+
+.menu-title {
+    color: rgb(227, 223, 213);
+    font-size: 42px;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    -unity-font-style: bold;
+}
+
+.menu-subtitle {
+    color: rgba(188, 189, 195, 0.82);
+    font-size: 15px;
+    line-height: 22px;
+    white-space: normal;
+}
+
+.menu-anchor {
+    position: absolute;
+    right: 6%;
+    bottom: 9%;
+    width: 28%;
+    min-width: 360px;
+    max-width: 440px;
+}
+
+.menu-shell {
+    padding-left: 28px;
+    padding-right: 28px;
+    padding-top: 24px;
+    padding-bottom: 22px;
+    background-color: rgba(13, 11, 10, 0.82);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(145, 109, 72, 0.82);
+    border-right-color: rgba(145, 109, 72, 0.54);
+    border-top-color: rgba(145, 109, 72, 0.82);
+    border-bottom-color: rgba(145, 109, 72, 0.46);
+}
+
+.menu-divider {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.divider-line {
+    flex-grow: 1;
+    height: 1px;
+    background-color: rgba(145, 110, 75, 0.42);
+}
+
+.divider-text {
+    margin-left: 10px;
+    margin-right: 10px;
+    color: rgba(194, 151, 100, 0.84);
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+.note-block {
+    margin-bottom: 20px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 14px;
+    padding-bottom: 15px;
+    background-color: rgba(8, 5, 5, 0.50);
+    border-left-width: 2px;
+    border-left-color: rgba(154, 113, 71, 0.82);
+}
+
+.note-text {
+    color: rgba(214, 205, 190, 0.86);
+    font-size: 14px;
+    line-height: 20px;
+    white-space: normal;
+}
+
+.button-stack {
+    margin-bottom: 14px;
+}
+
+.menu-button {
+    height: 54px;
+    margin-bottom: 12px;
+    padding-left: 18px;
+    padding-right: 18px;
+    color: rgb(229, 219, 205);
+    background-color: rgba(24, 18, 16, 0.94);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(135, 103, 67, 0.72);
+    border-right-color: rgba(135, 103, 67, 0.72);
+    border-top-color: rgba(135, 103, 67, 0.72);
+    border-bottom-color: rgba(135, 103, 67, 0.72);
+    font-size: 17px;
+    letter-spacing: 1px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+}
+
+.menu-button:hover {
+    background-color: rgba(47, 31, 24, 0.98);
+}
+
+.menu-button:active {
+    background-color: rgba(67, 43, 31, 1.0);
+}
+
+.primary-button {
+    background-color: rgba(86, 34, 23, 0.98);
+    border-left-color: rgba(214, 173, 117, 0.92);
+    border-right-color: rgba(214, 173, 117, 0.92);
+    border-top-color: rgba(214, 173, 117, 0.92);
+    border-bottom-color: rgba(214, 173, 117, 0.92);
+}
+
+.primary-button:hover {
+    background-color: rgba(111, 45, 28, 0.98);
+}
+
+.ghost-button {
+    background-color: rgba(10, 8, 8, 0.86);
+    color: rgba(188, 170, 149, 0.78);
+}
+
+.footer-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.footer-text {
+    color: rgba(176, 148, 116, 0.76);
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+.ember-dot {
+    width: 9px;
+    height: 9px;
+    background-color: rgba(126, 36, 21, 0.96);
+    opacity: 0.82;
+}

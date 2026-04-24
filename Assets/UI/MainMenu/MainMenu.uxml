@@ -1,0 +1,50 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="project://database/Assets/UI/MainMenu/MainMenu.uss" />
+    <ui:VisualElement name="menu-root" class="menu-root">
+        <ui:VisualElement name="background-layer" class="background-layer" />
+        <ui:VisualElement name="background-bloom" class="background-bloom" />
+        <ui:VisualElement name="dark-wash" class="dark-wash" />
+        <ui:VisualElement name="fog-wash" class="fog-wash" />
+        <ui:VisualElement name="edge-vignette-left" class="edge-vignette edge-vignette-left" />
+        <ui:VisualElement name="edge-vignette-right" class="edge-vignette edge-vignette-right" />
+        <ui:VisualElement name="upper-veil" class="screen-veil upper-veil" />
+        <ui:VisualElement name="lower-veil" class="screen-veil lower-veil" />
+
+        <ui:VisualElement name="frame-root" class="frame-root">
+            <ui:VisualElement name="title-anchor" class="title-anchor">
+                <ui:Label text="DARK FANTASY TABLETOP" class="eyebrow" />
+                <ui:Label text="黑林木屋" class="menu-title" />
+                <ui:Label
+                    text="雾、枯木、乌鸦与窗内火光仍停在原位。只有玩家按下开始，门后的黑暗才会真正打开。"
+                    class="menu-subtitle" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="menu-anchor" class="menu-anchor">
+                <ui:VisualElement name="menu-shell" class="menu-shell">
+                    <ui:VisualElement class="menu-divider">
+                        <ui:VisualElement class="divider-line" />
+                        <ui:Label text="门尚未开" class="divider-text" />
+                        <ui:VisualElement class="divider-line" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="note-block">
+                        <ui:Label
+                            text="主界面与室内对局场景已经分离。点击“开始游戏”或“继续游戏”后，才会进入长桌与恶魔主持人的房间。"
+                            class="note-text" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="button-stack">
+                        <ui:Button name="start-button" text="开始游戏" class="menu-button primary-button" />
+                        <ui:Button name="continue-button" text="继续游戏" class="menu-button" />
+                        <ui:Button name="quit-button" text="离开木屋" class="menu-button ghost-button" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="footer-row">
+                        <ui:Label text="主界面背景已预留低频待机动画位" class="footer-text" />
+                        <ui:VisualElement name="ember-dot" class="ember-dot" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
