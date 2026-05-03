@@ -173,6 +173,7 @@ public sealed class MainMenuController : MonoBehaviour
 
         isLoading = true;
         SetButtonsEnabled(false);
+        RoguelikeMapLaunchRequest.RequestInkPrintOnNextGameplayScene();
         Debug.Log($"[MainMenuController] Loading scene '{gameplaySceneName}'.", this);
         SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
     }
