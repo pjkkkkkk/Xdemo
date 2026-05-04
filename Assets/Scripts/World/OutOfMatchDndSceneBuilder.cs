@@ -9,6 +9,7 @@ using UnityEditor;
 public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
 {
     private const string c_GeneratedRootName = "GeneratedScene";
+    private const string c_DefaultUrpUnlitShader = "Universal Render Pipeline/Unlit";
     private const string c_DefaultUrpLitShader = "Universal Render Pipeline/Lit";
     private const string c_StandardShader = "Standard";
     private const string c_GeneratedAssetsFolder = "Assets/Generated";
@@ -59,9 +60,11 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
     [Header("Player Miniature")]
     [SerializeField] private string m_WizardObjectName = "wizard";
     [SerializeField] private string m_WizardSourceMaterialPath = "Assets/TripoModels/fantasy_wizard_3d_model/Materials/fantasywizard3dmodel_basecolor.mat";
-    [SerializeField, Range(0.05f, 0.45f)] private float m_WizardMiniatureScale = 0.22f;
-    [SerializeField, Range(0f, 0.08f)] private float m_WizardMapSurfaceOffset = 0.012f;
+    [SerializeField, Range(0.05f, 0.45f)] private float m_WizardMiniatureScale = 0.1467f;
+    [SerializeField, Range(0f, 0.08f)] private float m_WizardMapSurfaceOffset = 0f;
+    [SerializeField] private bool m_UseStableWizardLighting = true;
     [SerializeField] private bool m_FaceWizardTowardDemon = true;
+    [SerializeField, Range(-180f, 180f)] private float m_WizardFacingYawOffset = -90f;
     [SerializeField] private bool m_PreserveImportedWizardRotation = true;
     [SerializeField] private Vector3 m_WizardRotation = new Vector3(270f, 0f, 0f);
 
@@ -641,10 +644,12 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
                 continue;
             }
 
-            temporaryRenderers[i].shadowCastingMode = ShadowCastingMode.On;
-            temporaryRenderers[i].receiveShadows = true;
+            temporaryRenderers[i].shadowCastingMode = m_UseStableWizardLighting ? ShadowCastingMode.Off : ShadowCastingMode.On;
+            temporaryRenderers[i].receiveShadows = !m_UseStableWizardLighting;
             ConfigureWizardRendererMaterial(temporaryRenderers[i]);
         }
+
+        m_TabletopMapGenerator.SetPlayerPiece(temporaryWizard);
     }
 
     private void FaceWizardTowardDemon(Transform _wizard, Vector3 _wizardPosition)
@@ -662,7 +667,8 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
             return;
         }
 
-        _wizard.rotation = Quaternion.LookRotation(Vector3.up, temporaryDirection.normalized);
+        Vector3 adjustedDirection = Quaternion.AngleAxis(m_WizardFacingYawOffset, Vector3.up) * temporaryDirection.normalized;
+        _wizard.rotation = Quaternion.LookRotation(Vector3.up, adjustedDirection.normalized);
     }
 
     private void ConfigureWizardRendererMaterial(Renderer _renderer)
@@ -696,7 +702,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
 
     private Material CreateRuntimeWizardMaterial(Material _sourceMaterial)
     {
-        Shader temporaryShader = ResolveLitShader();
+        Shader temporaryShader = ResolveWizardShader();
         if (temporaryShader == null)
         {
             return _sourceMaterial;
@@ -766,6 +772,20 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         SetMaterialFloatIfPresent(_targetMaterial, "_Metallic", 0.18f);
         SetMaterialFloatIfPresent(_targetMaterial, "_Smoothness", 0.42f);
         SetMaterialFloatIfPresent(_targetMaterial, "_Glossiness", 0.42f);
+    }
+
+    private Shader ResolveWizardShader()
+    {
+        if (m_UseStableWizardLighting)
+        {
+            Shader temporaryUnlitShader = Shader.Find(c_DefaultUrpUnlitShader);
+            if (temporaryUnlitShader != null)
+            {
+                return temporaryUnlitShader;
+            }
+        }
+
+        return ResolveLitShader();
     }
 
     private static Texture GetFirstMaterialTexture(Material _material, params string[] _propertyNames)
@@ -1249,7 +1269,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         EnsureEditorFolder(c_GeneratedSceneFolder);
         EnsureEditorFolder(c_GeneratedMaterialsFolder);
 
-        Shader temporaryShader = ResolveLitShader();
+        Shader temporaryShader = ResolveWizardShader();
         if (temporaryShader == null)
         {
             Debug.LogError("[OutOfMatchDndSceneBuilder] Could not create wizard miniature material because no compatible shader was found.", this);

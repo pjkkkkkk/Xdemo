@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -123,12 +124,27 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
 
     [Header("Node Click")]
     [SerializeField] private bool enableNodeClick = true;
-    [SerializeField, Range(0.65f, 1.8f)] private float nodeClickBoundsScale = 1.18f;
+    [SerializeField, Range(0.3f, 1.2f)] private float nodeClickBoundsScale = 0.72f;
     [SerializeField] private string[] questionNodeScenePool = new string[0];
     [SerializeField] private string[] shopNodeScenePool = { c_DefaultShopSceneName };
     [SerializeField] private string[] campfireNodeScenePool = new string[0];
     [SerializeField] private string[] eliteNodeScenePool = new string[0];
     [SerializeField] private string[] bossNodeScenePool = new string[0];
+
+    [Header("Player Piece")]
+    [SerializeField] private string playerPieceName = "wizard";
+    [SerializeField] private bool movePlayerPieceOnValidNodeClick = true;
+    [SerializeField] private bool loadSceneAfterPlayerPieceMove = true;
+    [SerializeField, Range(0f, 0.03f)] private float playerPieceSurfaceOffset = 0f;
+    [SerializeField, Range(0.04f, 0.3f)] private float playerPieceHopDistance = 0.12f;
+    [SerializeField, Range(0.02f, 0.24f)] private float playerPieceLiftHeight = 0.075f;
+    [SerializeField, Range(0.05f, 0.5f)] private float playerPieceHopSeconds = 0.16f;
+    [SerializeField, Range(0f, 0.16f)] private float playerPieceLandingPauseSeconds = 0.035f;
+
+    [Header("Node Hover")]
+    [SerializeField] private bool enableNodeHoverScale = true;
+    [SerializeField, Range(1f, 1.25f)] private float nodeHoverScaleMultiplier = 1.1f;
+    [SerializeField, Range(4f, 30f)] private float nodeHoverScaleLerpSpeed = 14f;
 
     [Header("Debug")]
     [SerializeField] private bool logGeneratedData = true;
@@ -150,6 +166,11 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
     private readonly HashSet<string> connectionKeys = new HashSet<string>();
     private System.Random random;
     private int lastHandledNodeClickFrame = -1;
+    private MapNode currentPlayerNode;
+    private Transform playerPiece;
+    private Coroutine playerPieceMoveRoutine;
+    private bool isPlayerPieceMoving;
+    private RoguelikeMapNodeClickTarget hoveredNodeTarget;
     private Material generatedNodeMaterial;
     private Material generatedLineMaterial;
     private Material generatedParchmentMaterial;
@@ -201,23 +222,36 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
 
     public bool TryGetStartNodeWorldPosition(out Vector3 worldPosition)
     {
-        foreach (KeyValuePair<string, MapNode> pair in nodesById)
+        MapNode startNode = FindStartNode();
+        return TryGetNodeWorldPosition(startNode, out worldPosition);
+    }
+
+    public bool TryGetNodeWorldPosition(MapNode node, out Vector3 worldPosition)
+    {
+        if (node == null)
         {
-            MapNode node = pair.Value;
-            if (node != null && node.kind == MapNodeKind.Start)
-            {
-                worldPosition = transform.TransformPoint(GridToLocalPosition(node.y, node.x, 0.04f));
-                return true;
-            }
+            worldPosition = Vector3.zero;
+            return false;
         }
 
-        worldPosition = Vector3.zero;
-        return false;
+        worldPosition = transform.TransformPoint(GridToLocalPosition(node.y, node.x, 0.04f));
+        return true;
+    }
+
+    public void SetPlayerPiece(Transform piece)
+    {
+        playerPiece = piece;
+        if (currentPlayerNode == null)
+        {
+            currentPlayerNode = FindStartNode();
+        }
+
+        SnapPlayerPieceToCurrentNode();
     }
 
     public void HandleNodeClicked(MapNode node)
     {
-        if (!enableNodeClick || node == null)
+        if (!enableNodeClick || node == null || isPlayerPieceMoving)
         {
             return;
         }
@@ -227,7 +261,78 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
             return;
         }
 
+        if (currentPlayerNode == null)
+        {
+            currentPlayerNode = FindStartNode();
+        }
+
+        if (!IsValidNextPlayerNode(node))
+        {
+            return;
+        }
+
         lastHandledNodeClickFrame = Time.frameCount;
+
+        if (movePlayerPieceOnValidNodeClick && ResolvePlayerPiece() != null)
+        {
+            if (playerPieceMoveRoutine != null)
+            {
+                StopCoroutine(playerPieceMoveRoutine);
+            }
+
+            playerPieceMoveRoutine = StartCoroutine(MovePlayerPieceToNodeRoutine(node));
+            return;
+        }
+
+        currentPlayerNode = node;
+        RecordPlayerProgress(node);
+        TryLoadSceneForNode(node);
+    }
+
+    private bool IsValidNextPlayerNode(MapNode node)
+    {
+        if (currentPlayerNode == null || node == null || node.y != currentPlayerNode.y + 1)
+        {
+            return false;
+        }
+
+        return currentPlayerNode.nextNodes != null && currentPlayerNode.nextNodes.Contains(node);
+    }
+
+    private void RestorePlayerProgress()
+    {
+        MapNode startNode = FindStartNode();
+        currentPlayerNode = startNode;
+
+        string savedNodeId = RoguelikeMapLaunchRequest.GetCurrentMapNodeId();
+        if (!string.IsNullOrWhiteSpace(savedNodeId) && nodesById.TryGetValue(savedNodeId, out MapNode savedNode))
+        {
+            currentPlayerNode = savedNode;
+        }
+        else if (!string.IsNullOrWhiteSpace(savedNodeId))
+        {
+            RoguelikeMapLaunchRequest.ClearMapNodeHistory();
+        }
+
+        RecordPlayerProgress(currentPlayerNode);
+    }
+
+    private static void RecordPlayerProgress(MapNode node)
+    {
+        if (node == null)
+        {
+            return;
+        }
+
+        RoguelikeMapLaunchRequest.RecordVisitedMapNode(node.id);
+    }
+
+    private void TryLoadSceneForNode(MapNode node)
+    {
+        if (!loadSceneAfterPlayerPieceMove || node == null)
+        {
+            return;
+        }
 
         string sceneName = PickSceneFromPool(GetScenePool(node.kind));
         if (string.IsNullOrWhiteSpace(sceneName))
@@ -244,6 +349,181 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
 
         Debug.Log($"[RoguelikeMapGenerator] Loading scene '{sceneName}' from clicked node '{node.id}' ({node.kind}).", this);
         SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+    }
+
+    private IEnumerator MovePlayerPieceToNodeRoutine(MapNode targetNode)
+    {
+        isPlayerPieceMoving = true;
+
+        Transform piece = ResolvePlayerPiece();
+        Vector3 targetPosition;
+        if (piece != null && TryGetPlayerPieceTargetPosition(piece, targetNode, out targetPosition))
+        {
+            yield return MovePlayerPieceInHops(piece, targetPosition);
+        }
+
+        currentPlayerNode = targetNode;
+        RecordPlayerProgress(targetNode);
+        isPlayerPieceMoving = false;
+        playerPieceMoveRoutine = null;
+        TryLoadSceneForNode(targetNode);
+    }
+
+    private IEnumerator MovePlayerPieceInHops(Transform piece, Vector3 targetPosition)
+    {
+        Vector3 startPosition = piece.position;
+        Vector3 flatDelta = targetPosition - startPosition;
+        flatDelta.y = 0f;
+
+        int hopCount = Mathf.Max(1, Mathf.CeilToInt(flatDelta.magnitude / Mathf.Max(0.01f, playerPieceHopDistance)));
+        Vector3 hopStart = startPosition;
+        for (int i = 1; i <= hopCount; i++)
+        {
+            Vector3 hopEnd = Vector3.Lerp(startPosition, targetPosition, i / (float)hopCount);
+            yield return MovePlayerPieceHop(piece, hopStart, hopEnd);
+            hopStart = hopEnd;
+
+            if (playerPieceLandingPauseSeconds > 0f && i < hopCount)
+            {
+                yield return new WaitForSeconds(playerPieceLandingPauseSeconds);
+            }
+        }
+
+        piece.position = targetPosition;
+    }
+
+    private IEnumerator MovePlayerPieceHop(Transform piece, Vector3 startPosition, Vector3 endPosition)
+    {
+        float seconds = Mathf.Max(0.01f, playerPieceHopSeconds);
+        float elapsed = 0f;
+
+        while (elapsed < seconds)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / seconds);
+            float smoothT = t * t * (3f - 2f * t);
+            Vector3 position = Vector3.Lerp(startPosition, endPosition, smoothT);
+            position.y += Mathf.Sin(smoothT * Mathf.PI) * playerPieceLiftHeight;
+            piece.position = position;
+            yield return null;
+        }
+
+        piece.position = endPosition;
+    }
+
+    private bool TryGetPlayerPieceTargetPosition(Transform piece, MapNode node, out Vector3 targetPosition)
+    {
+        Vector3 nodeWorldPosition;
+        if (!TryGetNodeWorldPosition(node, out nodeWorldPosition))
+        {
+            targetPosition = Vector3.zero;
+            return false;
+        }
+
+        Vector3 targetBottomCenter = new Vector3(
+            nodeWorldPosition.x,
+            nodeWorldPosition.y + playerPieceSurfaceOffset,
+            nodeWorldPosition.z);
+
+        Bounds bounds;
+        if (TryGetRendererBounds(piece, out bounds))
+        {
+            Vector3 currentBottomCenter = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+            targetPosition = piece.position + (targetBottomCenter - currentBottomCenter);
+            return true;
+        }
+
+        targetPosition = targetBottomCenter;
+        return true;
+    }
+
+    private void SnapPlayerPieceToCurrentNode()
+    {
+        Transform piece = ResolvePlayerPiece();
+        Vector3 targetPosition;
+        if (piece == null || !TryGetPlayerPieceTargetPosition(piece, currentPlayerNode, out targetPosition))
+        {
+            return;
+        }
+
+        piece.position = targetPosition;
+    }
+
+    private Transform ResolvePlayerPiece()
+    {
+        if (playerPiece != null)
+        {
+            return playerPiece;
+        }
+
+        if (string.IsNullOrWhiteSpace(playerPieceName))
+        {
+            return null;
+        }
+
+        Transform[] transforms = Resources.FindObjectsOfTypeAll<Transform>();
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform candidate = transforms[i];
+            if (candidate == null || candidate.hideFlags != HideFlags.None || !candidate.gameObject.scene.IsValid())
+            {
+                continue;
+            }
+
+            if (string.Equals(candidate.name, playerPieceName, StringComparison.OrdinalIgnoreCase))
+            {
+                playerPiece = candidate;
+                return playerPiece;
+            }
+        }
+
+        return null;
+    }
+
+    private MapNode FindStartNode()
+    {
+        foreach (KeyValuePair<string, MapNode> pair in nodesById)
+        {
+            MapNode node = pair.Value;
+            if (node != null && node.kind == MapNodeKind.Start)
+            {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryGetRendererBounds(Transform root, out Bounds bounds)
+    {
+        bounds = new Bounds(root != null ? root.position : Vector3.zero, Vector3.zero);
+        if (root == null)
+        {
+            return false;
+        }
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        bool hasBounds = false;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            if (!hasBounds)
+            {
+                bounds = renderer.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        return hasBounds;
     }
 
     private void ApplyTabletopParchmentSettings(Vector2 mapSize, bool consumeLaunchPrintRequest)
@@ -291,8 +571,11 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
     {
         if (!enableNodeClick || nodesById.Count == 0)
         {
+            SetHoveredNode(null);
             return;
         }
+
+        HandleNodeHover();
 
         Vector2 screenPosition;
         if (!TryConsumePrimaryClick(out screenPosition))
@@ -322,6 +605,64 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
         if (clickTarget != null)
         {
             clickTarget.Click();
+        }
+    }
+
+    private void HandleNodeHover()
+    {
+        if (!enableNodeHoverScale)
+        {
+            SetHoveredNode(null);
+            return;
+        }
+
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+        {
+            SetHoveredNode(null);
+            return;
+        }
+
+        Vector2 screenPosition;
+        if (!TryReadPointerPosition(out screenPosition))
+        {
+            SetHoveredNode(null);
+            return;
+        }
+
+        Camera camera = Camera.main;
+        if (camera == null)
+        {
+            SetHoveredNode(null);
+            return;
+        }
+
+        Ray ray = camera.ScreenPointToRay(screenPosition);
+        RaycastHit hit;
+        if (!Physics.Raycast(ray, out hit, 100f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            SetHoveredNode(null);
+            return;
+        }
+
+        SetHoveredNode(hit.collider.GetComponentInParent<RoguelikeMapNodeClickTarget>());
+    }
+
+    private void SetHoveredNode(RoguelikeMapNodeClickTarget target)
+    {
+        if (hoveredNodeTarget == target)
+        {
+            return;
+        }
+
+        if (hoveredNodeTarget != null)
+        {
+            hoveredNodeTarget.SetHovering(false);
+        }
+
+        hoveredNodeTarget = target;
+        if (hoveredNodeTarget != null)
+        {
+            hoveredNodeTarget.SetHovering(true);
         }
     }
 
@@ -367,6 +708,29 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
         }
 
         return false;
+    }
+
+    private bool TryReadPointerPosition(out Vector2 screenPosition)
+    {
+        screenPosition = Vector2.zero;
+
+#if ENABLE_INPUT_SYSTEM
+        if (Mouse.current != null)
+        {
+            screenPosition = Mouse.current.position.ReadValue();
+            return true;
+        }
+#endif
+
+        try
+        {
+            screenPosition = Input.mousePosition;
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private string[] GetScenePool(MapNodeKind kind)
@@ -477,6 +841,8 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
         nodeyx = new MapNode[rows, columns];
         nodesById.Clear();
         connectionKeys.Clear();
+        currentPlayerNode = null;
+        SetHoveredNode(null);
 
         if (drawView)
         {
@@ -488,7 +854,8 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
     public void GenerateMap()
     {
         NormalizeSettings();
-        random = useRandomSeed ? new System.Random() : new System.Random(seed);
+        seed = RoguelikeMapLaunchRequest.EnsureMapRunSeed(useRandomSeed, seed);
+        random = new System.Random(seed);
 
         nodeyx = new MapNode[rows, columns];
         nodesById.Clear();
@@ -497,11 +864,14 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
         List<List<MapNode>> rowNodes = BuildConvergingMapRows();
         AssignShopNodes(rowNodes);
         ConnectConvergingMapRows(rowNodes);
+        RestorePlayerProgress();
 
         if (drawView)
         {
             RebuildView();
         }
+
+        SnapPlayerPieceToCurrentNode();
 
         if (logGeneratedData)
         {
@@ -1047,13 +1417,17 @@ public sealed class RoguelikeMapGenerator : MonoBehaviour
             return;
         }
 
-        float clickSize = GetNodeIconMaxSize(node.kind) * nodeClickBoundsScale;
-        BoxCollider collider = nodeObject.AddComponent<BoxCollider>();
+        float maxRadius = Mathf.Min(nodeSpacing.x, nodeSpacing.y) * 0.32f;
+        float clickRadius = Mathf.Clamp(
+            GetNodeIconMaxSize(node.kind) * nodeClickBoundsScale * 0.5f,
+            nodeRadius * 1.15f,
+            maxRadius);
+        SphereCollider collider = nodeObject.AddComponent<SphereCollider>();
         collider.center = Vector3.zero;
-        collider.size = new Vector3(clickSize, clickSize, Mathf.Max(0.025f, lineWidth * 4f));
+        collider.radius = clickRadius;
 
         RoguelikeMapNodeClickTarget target = nodeObject.AddComponent<RoguelikeMapNodeClickTarget>();
-        target.Initialize(this, node);
+        target.Initialize(this, node, enableNodeHoverScale, nodeHoverScaleMultiplier, nodeHoverScaleLerpSpeed);
     }
 
     private void CreateNodeIcon(Transform parent, MapNodeKind kind)
