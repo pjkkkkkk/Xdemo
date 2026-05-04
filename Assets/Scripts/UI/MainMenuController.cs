@@ -4,6 +4,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem.UI;
+using UnityEngine.PlayerLoop;
+
 #endif
 
 #if UNITY_EDITOR
