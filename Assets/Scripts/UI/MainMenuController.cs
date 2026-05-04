@@ -143,12 +143,12 @@ public sealed class MainMenuController : MonoBehaviour
 
     private void HandleStartClicked()
     {
-        LoadGameplayScene();
+        LoadGameplayScene(true);
     }
 
     private void HandleContinueClicked()
     {
-        LoadGameplayScene();
+        LoadGameplayScene(false);
     }
 
     private void HandleQuitClicked()
@@ -160,7 +160,7 @@ public sealed class MainMenuController : MonoBehaviour
 #endif
     }
 
-    private void LoadGameplayScene()
+    private void LoadGameplayScene(bool requestIntroDialogue)
     {
         if (isLoading)
         {
@@ -175,6 +175,17 @@ public sealed class MainMenuController : MonoBehaviour
 
         isLoading = true;
         SetButtonsEnabled(false);
+        if (requestIntroDialogue)
+        {
+            RoguelikeMapLaunchRequest.ClearMapRunState();
+        }
+
+        RoguelikeMapLaunchRequest.RequestInkPrintOnNextGameplayScene();
+        if (requestIntroDialogue)
+        {
+            RoguelikeMapLaunchRequest.RequestIntroDialogueOnNextGameplayScene();
+        }
+
         Debug.Log($"[MainMenuController] Loading scene '{gameplaySceneName}'.", this);
         SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
     }

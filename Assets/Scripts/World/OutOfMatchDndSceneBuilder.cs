@@ -9,6 +9,7 @@ using UnityEditor;
 public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
 {
     private const string c_GeneratedRootName = "GeneratedScene";
+    private const string c_DefaultUrpUnlitShader = "Universal Render Pipeline/Unlit";
     private const string c_DefaultUrpLitShader = "Universal Render Pipeline/Lit";
     private const string c_StandardShader = "Standard";
     private const string c_GeneratedAssetsFolder = "Assets/Generated";
@@ -24,6 +25,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
     [SerializeField] private string m_DemonSourceMaterialPath = "Assets/TripoModels/fantasy_necromancer_3d_model/Materials/fantasy+necromancer+3d+model_basecolor.mat";
     [SerializeField] private string[] m_ExtraModelNamesToHide = { "npc_1", "fallen wool", "dragon" };
     [SerializeField, Range(0.85f, 1.8f)] private float m_DemonScale = 1.28f;
+    [SerializeField] private bool m_PreserveImportedDemonRotation = true;
     [SerializeField, Range(-180f, 180f)] private float m_DemonYawOffset = 180f;
     [SerializeField, Range(0.28f, 0.9f)] private float m_DemonSeatHeight = 0.46f;
     [SerializeField, Range(0.45f, 1.35f)] private float m_DemonBackOffset = 0.76f;
@@ -35,13 +37,36 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
 
     [Header("Table Layout")]
     [SerializeField, Range(3.6f, 5.4f)] private float m_TableLength = 4.55f;
-    [SerializeField, Range(1.2f, 2f)] private float m_TableWidth = 1.58f;
+    [SerializeField, Range(1.2f, 2.4f)] private float m_TableWidth = 1.58f;
     [SerializeField, Range(0.74f, 1f)] private float m_TableHeight = 0.86f;
     [SerializeField, Range(0.12f, 0.32f)] private float m_RecessDepth = 0.17f;
     [SerializeField, Range(2f, 4.2f)] private float m_RecessLength = 3.16f;
-    [SerializeField, Range(0.56f, 1.12f)] private float m_RecessWidth = 0.8f;
+    [SerializeField, Range(0.56f, 1.62f)] private float m_RecessWidth = 0.8f;
     [SerializeField, Range(0.14f, 0.34f)] private float m_TableTopThickness = 0.09f;
     [SerializeField, Range(0.16f, 0.42f)] private float m_TableApronHeight = 0.26f;
+
+    [Header("Tabletop Map")]
+    [SerializeField] private bool m_CreateTabletopMap = true;
+    [SerializeField] private Texture2D m_TabletopMapIconAtlas;
+    [SerializeField] private string m_TabletopMapIconAtlasResourcePath = "Map/NodeIconAtlas";
+    [SerializeField, Range(0.02f, 0.16f)] private float m_TabletopMapMargin = 0.05f;
+    [SerializeField, Range(0.005f, 0.06f)] private float m_TabletopMapSurfaceLift = 0.028f;
+    [SerializeField] private string[] m_QuestionNodeScenePool = new string[0];
+    [SerializeField] private string[] m_ShopNodeScenePool = { "GoblinShop2DScene" };
+    [SerializeField] private string[] m_CampfireNodeScenePool = new string[0];
+    [SerializeField] private string[] m_EliteNodeScenePool = new string[0];
+    [SerializeField] private string[] m_BossNodeScenePool = new string[0];
+
+    [Header("Player Miniature")]
+    [SerializeField] private string m_WizardObjectName = "wizard";
+    [SerializeField] private string m_WizardSourceMaterialPath = "Assets/TripoModels/fantasy_wizard_3d_model/Materials/fantasywizard3dmodel_basecolor.mat";
+    [SerializeField, Range(0.05f, 0.45f)] private float m_WizardMiniatureScale = 0.1467f;
+    [SerializeField, Range(0f, 0.08f)] private float m_WizardMapSurfaceOffset = 0f;
+    [SerializeField] private bool m_UseStableWizardLighting = true;
+    [SerializeField] private bool m_FaceWizardTowardDemon = true;
+    [SerializeField, Range(-180f, 180f)] private float m_WizardFacingYawOffset = -90f;
+    [SerializeField] private bool m_PreserveImportedWizardRotation = true;
+    [SerializeField] private Vector3 m_WizardRotation = new Vector3(270f, 0f, 0f);
 
     [Header("View Layout")]
     [SerializeField, Range(0f, 0.24f)] private float m_PlayerSeatDistance = 0.005f;
@@ -73,6 +98,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
     private readonly List<Material> m_RuntimeMaterials = new List<Material>(64);
     private Transform m_GeneratedRoot;
     private Camera m_CachedMainCamera;
+    private RoguelikeMapGenerator m_TabletopMapGenerator;
 
     private void Awake()
     {
@@ -118,6 +144,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         BuildAtmosphericProps();
         BuildLighting();
         PositionImportedDemon();
+        PositionWizardMiniature();
         ConfigurePlayerView();
         SaveGeneratedAssets();
 
@@ -126,6 +153,12 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
 
     private void ValidateSettings()
     {
+        if (m_CreateTabletopMap)
+        {
+            m_TableWidth = Mathf.Max(m_TableWidth, 2.18f);
+            m_RecessWidth = Mathf.Max(m_RecessWidth, 1.42f);
+        }
+
         m_RecessLength = Mathf.Min(m_RecessLength, m_TableLength - 0.8f);
         m_RecessWidth = Mathf.Min(m_RecessWidth, m_TableWidth - 0.38f);
         m_RecessDepth = Mathf.Min(m_RecessDepth, m_TableHeight * 0.4f);
@@ -376,6 +409,7 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         CreatePrimitive("RecessWallSouth", PrimitiveType.Cube, new Vector3(0f, recessBaseY + (innerWallHeight * 0.5f), -recessHalfLength - 0.03f), new Vector3(m_RecessWidth, innerWallHeight, 0.06f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
         CreatePrimitive("RecessWallWest", PrimitiveType.Cube, new Vector3(-recessHalfWidth - 0.03f, recessBaseY + (innerWallHeight * 0.5f), 0f), new Vector3(0.06f, innerWallHeight, m_RecessLength + 0.12f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
         CreatePrimitive("RecessWallEast", PrimitiveType.Cube, new Vector3(recessHalfWidth + 0.03f, recessBaseY + (innerWallHeight * 0.5f), 0f), new Vector3(0.06f, innerWallHeight, m_RecessLength + 0.12f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
+        BuildTabletopMap(temporaryTableRoot, recessBaseY);
 
         CreatePrimitive("OuterApronNorth", PrimitiveType.Cube, new Vector3(0f, apronCenterY, halfLength - 0.04f), new Vector3(m_TableWidth - 0.08f, m_TableApronHeight, 0.08f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
         CreatePrimitive("OuterApronSouth", PrimitiveType.Cube, new Vector3(0f, apronCenterY, -halfLength + 0.04f), new Vector3(m_TableWidth - 0.08f, m_TableApronHeight, 0.08f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
@@ -391,6 +425,40 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         CreatePrimitive("LongStretcherEast", PrimitiveType.Cube, new Vector3(legOffsetX, 0.22f, 0f), new Vector3(0.06f, 0.08f, m_TableLength - 0.55f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
         CreatePrimitive("CrossStretcherNorth", PrimitiveType.Cube, new Vector3(0f, 0.23f, legOffsetZ), new Vector3(m_TableWidth - 0.44f, 0.08f, 0.06f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
         CreatePrimitive("CrossStretcherSouth", PrimitiveType.Cube, new Vector3(0f, 0.23f, -legOffsetZ), new Vector3(m_TableWidth - 0.44f, 0.08f, 0.06f), Quaternion.identity, temporaryWoodDarkMaterial, temporaryTableRoot);
+    }
+
+    private void BuildTabletopMap(Transform _tableRoot, float _recessBaseY)
+    {
+        m_TabletopMapGenerator = null;
+
+        if (!m_CreateTabletopMap)
+        {
+            return;
+        }
+
+        float temporaryMapWidth = Mathf.Max(0.18f, m_RecessWidth - (m_TabletopMapMargin * 2f));
+        float temporaryMapLength = Mathf.Max(0.32f, m_RecessLength - (m_TabletopMapMargin * 2f));
+        GameObject temporaryMapObject = new GameObject("PhysicalRoguelikeMap");
+        temporaryMapObject.transform.SetParent(_tableRoot, false);
+
+        RoguelikeMapGenerator temporaryGenerator = temporaryMapObject.AddComponent<RoguelikeMapGenerator>();
+        temporaryGenerator.SetupAsLocalTabletopParchment(
+            new Vector3(0f, _recessBaseY + m_TabletopMapSurfaceLift, 0f),
+            Quaternion.Euler(-90f, 180f, 0f),
+            new Vector2(temporaryMapWidth, temporaryMapLength),
+            true);
+        temporaryGenerator.SetNodeIconAtlas(ResolveTabletopMapIconAtlas());
+        temporaryGenerator.SetNodeScenePools(
+            m_QuestionNodeScenePool,
+            m_ShopNodeScenePool,
+            m_CampfireNodeScenePool,
+            m_EliteNodeScenePool,
+            m_BossNodeScenePool);
+        temporaryGenerator.SetStartBuildEnabled(false);
+
+        RoguelikeMapLaunchRequest.ConsumeInkPrintOnNextGameplayScene();
+        temporaryGenerator.GenerateMap();
+        m_TabletopMapGenerator = temporaryGenerator;
     }
 
     private void BuildDealerSeat()
@@ -509,7 +577,10 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         temporaryDealer.gameObject.SetActive(true);
         temporaryDealer.SetParent(null, true);
         temporaryDealer.position = new Vector3(0f, m_TableHeight + m_DemonSeatHeight, (m_TableLength * 0.5f) + m_DemonBackOffset);
-        temporaryDealer.rotation = Quaternion.Euler(0f, m_DemonYawOffset, 0f);
+        if (!m_PreserveImportedDemonRotation)
+        {
+            temporaryDealer.rotation = Quaternion.Euler(0f, m_DemonYawOffset, 0f);
+        }
         temporaryDealer.localScale = Vector3.one * m_DemonScale;
 
         Renderer[] temporaryRenderers = temporaryDealer.GetComponentsInChildren<Renderer>(true);
@@ -517,6 +588,288 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         {
             TintImportedRenderer(temporaryRenderers[i], new Color(0.7f, 0.6f, 0.54f, 1f));
         }
+    }
+
+    private void PositionWizardMiniature()
+    {
+        Transform temporaryWizard = FindSceneTransformByName(m_WizardObjectName);
+        if (temporaryWizard == null || m_TabletopMapGenerator == null)
+        {
+            return;
+        }
+
+        Vector3 temporaryStartNodePosition;
+        if (!m_TabletopMapGenerator.TryGetStartNodeWorldPosition(out temporaryStartNodePosition))
+        {
+            return;
+        }
+
+        temporaryWizard.gameObject.SetActive(true);
+        temporaryWizard.SetParent(null, true);
+        temporaryWizard.localScale = Vector3.one * m_WizardMiniatureScale;
+
+        if (m_FaceWizardTowardDemon)
+        {
+            FaceWizardTowardDemon(temporaryWizard, temporaryStartNodePosition);
+        }
+        else if (!m_PreserveImportedWizardRotation)
+        {
+            temporaryWizard.rotation = Quaternion.Euler(m_WizardRotation);
+        }
+
+        Bounds temporaryBounds;
+        if (TryGetRendererBounds(temporaryWizard, out temporaryBounds))
+        {
+            Vector3 temporaryTargetBottomCenter = new Vector3(
+                temporaryStartNodePosition.x,
+                temporaryStartNodePosition.y + m_WizardMapSurfaceOffset,
+                temporaryStartNodePosition.z);
+            Vector3 temporaryCurrentBottomCenter = new Vector3(
+                temporaryBounds.center.x,
+                temporaryBounds.min.y,
+                temporaryBounds.center.z);
+
+            temporaryWizard.position += temporaryTargetBottomCenter - temporaryCurrentBottomCenter;
+        }
+        else
+        {
+            temporaryWizard.position = temporaryStartNodePosition + (Vector3.up * m_WizardMapSurfaceOffset);
+        }
+
+        Renderer[] temporaryRenderers = temporaryWizard.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < temporaryRenderers.Length; i++)
+        {
+            if (temporaryRenderers[i] == null)
+            {
+                continue;
+            }
+
+            temporaryRenderers[i].shadowCastingMode = m_UseStableWizardLighting ? ShadowCastingMode.Off : ShadowCastingMode.On;
+            temporaryRenderers[i].receiveShadows = !m_UseStableWizardLighting;
+            ConfigureWizardRendererMaterial(temporaryRenderers[i]);
+        }
+
+        m_TabletopMapGenerator.SetPlayerPiece(temporaryWizard);
+    }
+
+    private void FaceWizardTowardDemon(Transform _wizard, Vector3 _wizardPosition)
+    {
+        Transform temporaryDemon = FindSceneTransformByName(m_DemonObjectName);
+        if (_wizard == null || temporaryDemon == null)
+        {
+            return;
+        }
+
+        Vector3 temporaryDirection = temporaryDemon.position - _wizardPosition;
+        temporaryDirection.y = 0f;
+        if (temporaryDirection.sqrMagnitude <= 0.0001f)
+        {
+            return;
+        }
+
+        Vector3 adjustedDirection = Quaternion.AngleAxis(m_WizardFacingYawOffset, Vector3.up) * temporaryDirection.normalized;
+        _wizard.rotation = Quaternion.LookRotation(Vector3.up, adjustedDirection.normalized);
+    }
+
+    private void ConfigureWizardRendererMaterial(Renderer _renderer)
+    {
+        if (_renderer == null)
+        {
+            return;
+        }
+
+        Material temporarySourceMaterial = ResolveWizardSourceMaterial(_renderer.sharedMaterial);
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            Material temporaryPersistentMaterial = CreateOrUpdateEditorWizardMaterial("WizardMiniatureMat", temporarySourceMaterial);
+            if (temporaryPersistentMaterial != null)
+            {
+                _renderer.sharedMaterial = temporaryPersistentMaterial;
+            }
+
+            return;
+        }
+#endif
+
+        Material temporaryRuntimeMaterial = CreateRuntimeWizardMaterial(temporarySourceMaterial);
+        if (temporaryRuntimeMaterial != null)
+        {
+            m_RuntimeMaterials.Add(temporaryRuntimeMaterial);
+            _renderer.sharedMaterial = temporaryRuntimeMaterial;
+        }
+    }
+
+    private Material CreateRuntimeWizardMaterial(Material _sourceMaterial)
+    {
+        Shader temporaryShader = ResolveWizardShader();
+        if (temporaryShader == null)
+        {
+            return _sourceMaterial;
+        }
+
+        Material temporaryMaterial = new Material(temporaryShader)
+        {
+            name = "WizardMiniatureRuntimeMat",
+            hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild
+        };
+        ApplyWizardMaterialProperties(temporaryMaterial, _sourceMaterial);
+        return temporaryMaterial;
+    }
+
+    private Material ResolveWizardSourceMaterial(Material _fallbackMaterial)
+    {
+        if (_fallbackMaterial != null)
+        {
+            return _fallbackMaterial;
+        }
+
+#if UNITY_EDITOR
+        if (!string.IsNullOrWhiteSpace(m_WizardSourceMaterialPath))
+        {
+            Material temporarySourceMaterial = AssetDatabase.LoadAssetAtPath<Material>(m_WizardSourceMaterialPath);
+            if (temporarySourceMaterial != null)
+            {
+                return temporarySourceMaterial;
+            }
+        }
+#endif
+
+        return null;
+    }
+
+    private void ApplyWizardMaterialProperties(Material _targetMaterial, Material _sourceMaterial)
+    {
+        if (_targetMaterial == null)
+        {
+            return;
+        }
+
+        ApplyMaterialProperties(_targetMaterial, Color.white, 0.38f, 0f);
+
+        Texture temporaryBaseTexture = GetFirstMaterialTexture(_sourceMaterial, "_BaseMap", "_MainTex");
+        if (temporaryBaseTexture != null)
+        {
+            _targetMaterial.mainTexture = temporaryBaseTexture;
+            SetMaterialTextureIfPresent(_targetMaterial, "_BaseMap", temporaryBaseTexture);
+            SetMaterialTextureIfPresent(_targetMaterial, "_MainTex", temporaryBaseTexture);
+        }
+
+        Texture temporaryNormalTexture = GetFirstMaterialTexture(_sourceMaterial, "_BumpMap");
+        if (temporaryNormalTexture != null)
+        {
+            SetMaterialTextureIfPresent(_targetMaterial, "_BumpMap", temporaryNormalTexture);
+            _targetMaterial.EnableKeyword("_NORMALMAP");
+        }
+
+        Texture temporaryMetallicTexture = GetFirstMaterialTexture(_sourceMaterial, "_MetallicGlossMap");
+        if (temporaryMetallicTexture != null)
+        {
+            SetMaterialTextureIfPresent(_targetMaterial, "_MetallicGlossMap", temporaryMetallicTexture);
+            _targetMaterial.EnableKeyword("_METALLICSPECGLOSSMAP");
+        }
+
+        SetMaterialFloatIfPresent(_targetMaterial, "_Metallic", 0.18f);
+        SetMaterialFloatIfPresent(_targetMaterial, "_Smoothness", 0.42f);
+        SetMaterialFloatIfPresent(_targetMaterial, "_Glossiness", 0.42f);
+    }
+
+    private Shader ResolveWizardShader()
+    {
+        if (m_UseStableWizardLighting)
+        {
+            Shader temporaryUnlitShader = Shader.Find(c_DefaultUrpUnlitShader);
+            if (temporaryUnlitShader != null)
+            {
+                return temporaryUnlitShader;
+            }
+        }
+
+        return ResolveLitShader();
+    }
+
+    private static Texture GetFirstMaterialTexture(Material _material, params string[] _propertyNames)
+    {
+        if (_material == null || _propertyNames == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < _propertyNames.Length; i++)
+        {
+            string temporaryPropertyName = _propertyNames[i];
+            if (!string.IsNullOrWhiteSpace(temporaryPropertyName) && _material.HasProperty(temporaryPropertyName))
+            {
+                Texture temporaryTexture = _material.GetTexture(temporaryPropertyName);
+                if (temporaryTexture != null)
+                {
+                    return temporaryTexture;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static void SetMaterialTextureIfPresent(Material _material, string _propertyName, Texture _texture)
+    {
+        if (_material != null && _texture != null && _material.HasProperty(_propertyName))
+        {
+            _material.SetTexture(_propertyName, _texture);
+        }
+    }
+
+    private static void SetMaterialFloatIfPresent(Material _material, string _propertyName, float _value)
+    {
+        if (_material != null && _material.HasProperty(_propertyName))
+        {
+            _material.SetFloat(_propertyName, _value);
+        }
+    }
+
+    private static bool TryGetRendererBounds(Transform _root, out Bounds _bounds)
+    {
+        _bounds = default;
+        if (_root == null)
+        {
+            return false;
+        }
+
+        Renderer[] temporaryRenderers = _root.GetComponentsInChildren<Renderer>(true);
+        bool hasBounds = false;
+        for (int i = 0; i < temporaryRenderers.Length; i++)
+        {
+            if (temporaryRenderers[i] == null)
+            {
+                continue;
+            }
+
+            if (!hasBounds)
+            {
+                _bounds = temporaryRenderers[i].bounds;
+                hasBounds = true;
+                continue;
+            }
+
+            _bounds.Encapsulate(temporaryRenderers[i].bounds);
+        }
+
+        return hasBounds;
+    }
+
+    private Texture2D ResolveTabletopMapIconAtlas()
+    {
+        if (m_TabletopMapIconAtlas != null)
+        {
+            return m_TabletopMapIconAtlas;
+        }
+
+        if (string.IsNullOrWhiteSpace(m_TabletopMapIconAtlasResourcePath))
+        {
+            return null;
+        }
+
+        return Resources.Load<Texture2D>(m_TabletopMapIconAtlasResourcePath);
     }
 
     private void BuildFallbackDealer()
@@ -906,6 +1259,40 @@ public sealed class OutOfMatchDndSceneBuilder : MonoBehaviour
         }
 
         ApplyMaterialProperties(temporaryMaterial, _color, _smoothness, _emission);
+        EditorUtility.SetDirty(temporaryMaterial);
+        return temporaryMaterial;
+    }
+
+    private Material CreateOrUpdateEditorWizardMaterial(string _name, Material _sourceMaterial)
+    {
+        EnsureEditorFolder(c_GeneratedAssetsFolder);
+        EnsureEditorFolder(c_GeneratedSceneFolder);
+        EnsureEditorFolder(c_GeneratedMaterialsFolder);
+
+        Shader temporaryShader = ResolveWizardShader();
+        if (temporaryShader == null)
+        {
+            Debug.LogError("[OutOfMatchDndSceneBuilder] Could not create wizard miniature material because no compatible shader was found.", this);
+            return _sourceMaterial;
+        }
+
+        string temporaryPath = $"{c_GeneratedMaterialsFolder}/{_name}.mat";
+        Material temporaryMaterial = AssetDatabase.LoadAssetAtPath<Material>(temporaryPath);
+
+        if (temporaryMaterial == null)
+        {
+            temporaryMaterial = new Material(temporaryShader)
+            {
+                name = _name
+            };
+            AssetDatabase.CreateAsset(temporaryMaterial, temporaryPath);
+        }
+        else if (temporaryMaterial.shader != temporaryShader)
+        {
+            temporaryMaterial.shader = temporaryShader;
+        }
+
+        ApplyWizardMaterialProperties(temporaryMaterial, _sourceMaterial);
         EditorUtility.SetDirty(temporaryMaterial);
         return temporaryMaterial;
     }
